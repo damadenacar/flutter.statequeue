@@ -3,7 +3,8 @@ description: >-
   Provides a queue to whose entries have a timestamp, so that it is possible to
   get when happened the last occurrence of an state or if a sequence of states 
   has happened in a period of time.
-version: 1.0.0
+version: 1.0.1
+homepage: https://github.com/damadenacar/flutter.timestampedqueue
 
 environment:
   sdk: '>=2.18.0 <3.0.0'

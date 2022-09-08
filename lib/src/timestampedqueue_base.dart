@@ -59,6 +59,17 @@ class TimestampedQueue<T> {
     }
   }
 
+  /// Removes the first entry from the queue (i.e. the older one) and retrieves it.
+  TimestampedEntry<T> pop() {
+    if (_timestampedQueue.isEmpty) {
+      throw Exception("the queue is empty");
+    }
+    return _timestampedQueue.removeAt(0);
+  }
+
+  /// This is an alias for `add` method, to match the push/pop semantics
+  void push(entry, [ int? time ]) => add(entry, time);
+
   /// Obtains the last entry in the queue (including the timestamp)
   TimestampedEntry<T> get last {
     if (_timestampedQueue.isEmpty) {
@@ -118,7 +129,11 @@ class TimestampedQueue<T> {
   /// If [timeDone] is null, the time available to be done is considered to be infinite. So if the sequence matches
   ///   at the requested position, it will return "true", independent from the time elapsed between the first and
   ///   the last entry.
-  bool isSequenceAt(List<T?> sequence, int position, { int? timeDone, bool matchNull = false }) {
+  /// 
+  /// When calculating the time used for the sequence, it is possible to use [skipEntriesForTimestamp] to skip a number
+  ///   of entries from the beginning. (e.g.) if having 4 entries in the sequence, is [skipEntriesForTimestamp] is 1, the
+  ///   time will be the amount between entry in position \#1 and position \#4
+  bool isSequenceAt(List<T?> sequence, int position, { int? timeDone, int skipEntriesForTimestamp = 0, bool matchNull = false }) {
     if (sequence.isEmpty) {
       return true;
     }
@@ -129,6 +144,9 @@ class TimestampedQueue<T> {
       return false;
     }
     if (position + sequence.length > _timestampedQueue.length) {
+      return false;
+    }
+    if (skipEntriesForTimestamp > sequence.length) {
       return false;
     }
 
@@ -147,7 +165,7 @@ class TimestampedQueue<T> {
     if (sequenceFound) {
       // Let's check whether the sequence was done in time
       if (timeDone != null) {
-        final timeElapsed = _timestampedQueue[position + sequence.length - 1].time - _timestampedQueue[position].time;
+        final timeElapsed = _timestampedQueue[position + sequence.length - 1 + skipEntriesForTimestamp].time - _timestampedQueue[position].time;
         if (timeDone < timeElapsed) {
           sequenceFound = false;
         }
@@ -161,15 +179,19 @@ class TimestampedQueue<T> {
   ///   sequence and the end is less or equal than [timeDone]. If the sequence does not appear or the time of appearance
   ///   is greater than the requested one, the funcion will return _null_.
   /// 
-  /// In case that [timeDone] is null, the time considered is unlimited, so in case that the sequence appears, it
-  ///   will return its position.
-  /// 
   /// [sequence] is a list of T or null values; the null value matches with any entry unless [matchNull] is set to
   ///   true; in that case, null values need to match with the entries in the queue.
   /// 
+  /// In case that [timeDone] is null, the time considered is unlimited, so in case that the sequence appears, it
+  ///   will return its position.
+  /// 
+  /// When calculating the time used for the sequence, it is possible to use [skipEntriesForTimestamp] to skip a number
+  ///   of entries from the beginning. (e.g.) if having 4 entries in the sequence, is [skipEntriesForTimestamp] is 1, the
+  ///   time will be the amount between entry in position \#1 and position \#4
+  /// 
   /// Searching the sequence starts at the beginning of the queue, but it is possible to skip [offset] entries. This
   ///   is specially useful to search multiple 
-  int? sequenceFind(List<T?> sequence, { int? timeDone, int offset = 0, bool matchNull = false }) {
+  int? sequenceFind(List<T?> sequence, { int? timeDone, int offset = 0, int skipEntriesForTimestamp = 0, bool matchNull = false }) {
     // Skip the impossible cases
     if (offset + sequence.length > _timestampedQueue.length) {
       return null;
@@ -182,7 +204,7 @@ class TimestampedQueue<T> {
     int? positionFound;
     
     for (var i = offset; (i <= _timestampedQueue.length - sequence.length) && (positionFound == null); i++) {
-      if (isSequenceAt(sequence, i, timeDone: timeDone, matchNull: matchNull)) {
+      if (isSequenceAt(sequence, i, timeDone: timeDone, matchNull: matchNull, skipEntriesForTimestamp: skipEntriesForTimestamp)) {
         positionFound = i;
         break;
       }
@@ -195,18 +217,14 @@ class TimestampedQueue<T> {
   ///   sequence and the end is less or equal than [timeDone]. If the sequence does not appear or the time of appearance 
   ///   is greater than the requested one, the funcion will return _null_.
   /// 
-  /// In case that [timeDone] is null, the time considered is unlimited, so in case that the sequence appears, it
-  ///   will return its position.
-  /// 
-  /// [sequence] is a list of T or null values; the null value matches with any entry unless [matchNull] is set to
-  ///   true; in that case, null values need to match with the entries in the queue.
-  /// 
   /// If [offset] is specified, the search will begin at this entry position; if [offset] is negative, the search
   ///   will begin from this position, starting from the end. 
   ///   e.g. having a queue of 1000, and a search sequence of 5 values; offset = 30 means to search from 30 to 1000,
   ///        while offset = -30 means to search from 0 to 970 (so the first posible position will be 965, as the
   ///        sequence is of 5 entries).
-  int? sequenceReverseFind(List<T?> sequence, { int? timeDone, int? offset, bool matchNull = false }) {
+  /// 
+  /// Please see `sequenceFind` for the details of the other parameters.
+  int? sequenceReverseFind(List<T?> sequence, { int? timeDone, int? offset, int skipEntriesForTimestamp = 0, bool matchNull = false }) {
     // Adjust the maximum position to find the sequence
     offset = offset??0;
     int searchStart = 0;
@@ -234,7 +252,7 @@ class TimestampedQueue<T> {
 
     for (var i = searchEnd; (i >= searchStart) && (positionFound == null); i--) {
       // If the sequence has been actually found, mark it
-      if (isSequenceAt(sequence, i, timeDone: timeDone, matchNull: matchNull)) {
+      if (isSequenceAt(sequence, i, timeDone: timeDone, matchNull: matchNull, skipEntriesForTimestamp: skipEntriesForTimestamp)) {
         positionFound = i;
         break;
       }
@@ -246,12 +264,9 @@ class TimestampedQueue<T> {
   /// Returns true if the last sequence done is [sequence], and it the elapsed time between the first and the last entry of the
   ///   sequence is less or equal than [timeDone].
   /// 
-  /// [sequence] is a list of values or null; if one value is _null_, it is interpreted as "any value", unless "matchNull" is set
-  ///   to true. In that case, _null_ will match _null_ values in the queue.
-  /// 
-  /// If [timeDone] is set to _null_ means "any elapsed time"; so the appearance of the sequence will always match.
-  bool lastSequenceDone(List<T?> sequence, { int? timeDone, bool matchNull = false }) {
-    int? positionFound = sequenceReverseFind(sequence, timeDone: timeDone);
+  /// Please see `sequenceFind` for the details of parameters.
+  bool lastSequenceDone(List<T?> sequence, { int? timeDone, int skipEntriesForTimestamp = 0, bool matchNull = false }) {
+    int? positionFound = sequenceReverseFind(sequence, timeDone: timeDone, skipEntriesForTimestamp: skipEntriesForTimestamp);
     if (positionFound == null) {
       return false;
     }
