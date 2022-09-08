@@ -1,3 +1,7 @@
+## 1.0.2
+
+- Minor bug.
+
 ## 1.0.1
 
 - Add `push` and `pop` methods

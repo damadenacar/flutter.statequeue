@@ -165,7 +165,7 @@ class TimestampedQueue<T> {
     if (sequenceFound) {
       // Let's check whether the sequence was done in time
       if (timeDone != null) {
-        final timeElapsed = _timestampedQueue[position + sequence.length - 1 + skipEntriesForTimestamp].time - _timestampedQueue[position].time;
+        final timeElapsed = _timestampedQueue[position + sequence.length - 1 ].time - _timestampedQueue[position + skipEntriesForTimestamp].time;
         if (timeDone < timeElapsed) {
           sequenceFound = false;
         }
